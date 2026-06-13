@@ -58,6 +58,7 @@
   <div class="play">
     <button class="btn" id="play">▶ Ver intento 1</button>
     <button class="btn ghost" id="play2">▶ Ver intento 2</button>
+    <button class="btn ghost" id="play3">▶ Ver intento 3</button>
     <button class="btn ghost" id="reset">Reiniciar</button>
     <button class="btn ghost" id="toggleDim">Cotas: ON</button>
     <button class="btn ghost" id="manBtn">⌨ Conducir</button>
@@ -144,10 +145,10 @@
     return best;}
 
   // ---- estado de escena ----
-  let GH=null,GH2=null,verdict='no',blockFrac=1,blockFrac2=1,blockKind=null,parkMan=null;
+  let GH=null,GH2=null,GH3=null,verdict='no',blockFrac=1,blockFrac2=1,blockFrac3=1,blockKind=null,parkMan=null;
   let activeAttempt=1;
-  function curGH(){return activeAttempt===2&&GH2?GH2:GH;}
-  function curBF(){return activeAttempt===2?blockFrac2:blockFrac;}
+  function curGH(){return activeAttempt===3&&GH3?GH3:activeAttempt===2&&GH2?GH2:GH;}
+  function curBF(){return activeAttempt===3?blockFrac3:activeAttempt===2?blockFrac2:blockFrac;}
   // ---- modo conducción manual ----
   let manualMode=false,manCar={x:0,y:0,th:0},manSegs=[],manCurSeg=null,manCrashed=false,manAnimId=null;
   const keys=new Set();
@@ -217,6 +218,38 @@
     ]};
   }
 
+  function attempt3(){
+    const y0=-(S.acera+S.laneFree/2);
+    const x0=-(S.L/2+G.wb+G.fo);
+    return {start:[x0,y0,0.0],segs:[
+      {dir:1,steer:0,len:5.28},{dir:1,steer:0.4209,len:4.14},{dir:-1,steer:0,len:1.59},
+      {dir:1,steer:0,len:1.05},{dir:1,steer:-0.4209,len:0.51},{dir:1,steer:0,len:0.33},
+      {dir:1,steer:-0.4209,len:0.63},{dir:1,steer:0,len:0.45},{dir:1,steer:-0.4209,len:0.09},
+      {dir:1,steer:0,len:0.15},{dir:1,steer:-0.4209,len:0.3},{dir:-1,steer:0,len:4.95},
+      {dir:1,steer:0.4209,len:0.84},{dir:1,steer:0,len:0.15},{dir:1,steer:-0.4209,len:0.42},
+      {dir:1,steer:0,len:0.24},{dir:1,steer:0.4209,len:0.36},{dir:1,steer:0,len:0.78},
+      {dir:1,steer:-0.4209,len:0.33},{dir:1,steer:0,len:0.54},{dir:1,steer:-0.4209,len:0.39},
+      {dir:1,steer:0,len:0.39},{dir:1,steer:-0.4209,len:0.99},{dir:1,steer:0,len:0.12},
+      {dir:-1,steer:0,len:2.37},{dir:1,steer:0.4209,len:0.69},{dir:1,steer:0,len:0.15},
+      {dir:1,steer:-0.4209,len:0.24},{dir:1,steer:0,len:0.48},{dir:-1,steer:0,len:0.66},
+      {dir:1,steer:-0.4209,len:0.3},{dir:1,steer:0,len:0.63},{dir:1,steer:-0.4209,len:0.24},
+      {dir:1,steer:0,len:0.24},{dir:1,steer:-0.4209,len:0.21},{dir:-1,steer:0,len:1.95},
+      {dir:-1,steer:0.4209,len:0.21},{dir:1,steer:0.4209,len:0.39},{dir:1,steer:0,len:0.06},
+      {dir:1,steer:-0.4209,len:0.42},{dir:1,steer:0,len:0.09},{dir:1,steer:0.4209,len:0.27},
+      {dir:1,steer:0,len:0.21},{dir:1,steer:-0.4209,len:0.27},{dir:-1,steer:0.4209,len:0.33},
+      {dir:1,steer:0,len:0.78},{dir:1,steer:-0.4209,len:0.06},{dir:1,steer:0,len:0.03},
+      {dir:1,steer:-0.4209,len:0.12},{dir:-1,steer:0,len:3.33},{dir:1,steer:0,len:0.06},
+      {dir:1,steer:0.4209,len:0.87},{dir:1,steer:0,len:0.18},{dir:1,steer:-0.4209,len:0.57},
+      {dir:1,steer:0,len:0.12},{dir:1,steer:0.4209,len:0.21},{dir:1,steer:0,len:0.03},
+      {dir:1,steer:0.4209,len:0.18},{dir:1,steer:0,len:0.06},{dir:1,steer:-0.4209,len:0.45},
+      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.51},{dir:-1,steer:0,len:2.79},
+      {dir:1,steer:0,len:0.42},{dir:1,steer:0.4209,len:0.51},{dir:1,steer:0,len:0.18},
+      {dir:1,steer:-0.4209,len:0.12},{dir:1,steer:0,len:0.63},{dir:1,steer:-0.4209,len:0.42},
+      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.27},{dir:1,steer:0,len:0.45},
+      {dir:-1,steer:0,len:3.39}
+    ]};
+  }
+
   function showCrashOverlay(){document.getElementById('crash-overlay').classList.add('on');}
   function hideCrashOverlay(){document.getElementById('crash-overlay').classList.remove('on');}
   function showJsonOverlay(json){document.getElementById('json-ta').value=json;document.getElementById('json-overlay').classList.add('on');}
@@ -277,6 +310,8 @@
     blockFrac=GH.block?GH.block.s/GH.total:1; blockKind=GH.block?GH.block.hit:null;
     const A2=attempt2();GH2=ghost(A2.start,A2.segs);
     blockFrac2=GH2.block?GH2.block.s/GH2.total:1;
+    const A3=attempt3();GH3=ghost(A3.start,A3.segs);
+    blockFrac3=GH3.block?GH3.block.s/GH3.total:1;
     // ¿cabe de verdad? si el carril es claramente estrecho -> no. si no, intenta el planner.
     if(S.laneFree<=2.7){verdict='no';parkMan=null;done();if(cb)cb();return;}
     document.getElementById('calc').classList.add('on');
@@ -423,13 +458,15 @@
     document.getElementById('t').value=Math.round(S.t*1000);draw();update();if(S.playing)requestAnimationFrame(tick);}
   function stop(){S.playing=false;
     document.getElementById('play').textContent='▶ Ver intento 1';
-    document.getElementById('play2').textContent='▶ Ver intento 2';}
+    document.getElementById('play2').textContent='▶ Ver intento 2';
+    document.getElementById('play3').textContent='▶ Ver intento 3';}
 
   document.getElementById('toggleDim').addEventListener('click',()=>{S.showDim=!S.showDim;document.getElementById('toggleDim').textContent='Cotas: '+(S.showDim?'ON':'OFF');draw();});
   document.getElementById('t').addEventListener('input',e=>{S.t=e.target.value/1000;stop();draw();update();});
   document.getElementById('speed').addEventListener('input',e=>{S.speed=parseFloat(e.target.value);});
   document.getElementById('play').addEventListener('click',()=>{if(manualMode)return;if(S.playing&&activeAttempt===1){stop();return;}stop();activeAttempt=1;if(S.t>=curBF()-1e-3)S.t=0;S.playing=true;document.getElementById('play').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
   document.getElementById('play2').addEventListener('click',()=>{if(manualMode)return;if(S.playing&&activeAttempt===2){stop();return;}stop();activeAttempt=2;if(S.t>=curBF()-1e-3)S.t=0;S.playing=true;document.getElementById('play2').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
+  document.getElementById('play3').addEventListener('click',()=>{if(manualMode)return;if(S.playing&&activeAttempt===3){stop();return;}stop();activeAttempt=3;if(S.t>=curBF()-1e-3)S.t=0;S.playing=true;document.getElementById('play3').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
   document.getElementById('reset').addEventListener('click',()=>{
     if(manualMode){startManual();return;}
     S.t=0;document.getElementById('t').value=0;stop();draw();update();
