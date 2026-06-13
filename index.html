@@ -66,15 +66,15 @@
   const m=x=>parseFloat(x.toFixed(2)).toString().replace('.',',');
   const cm=x=>Math.round(x*100)+' cm';
 
-  const DEF={L:4.6,Wc:1.8,R:5.0,w1:4.7,d1:4.0,w2:4.9,d2:3.0,gw:5.5,pillar:0.2,meterW:0.8,meterD:0.25,ped:1.0,acera:0.7,laneFree:2.3,calzada:4.3};
+  const DEF={L:4.6,Wc:1.755,R:5.4,w1:4.7,d1:4.0,w2:4.9,d2:3.0,gw:5.5,pillar:0.2,meterW:0.8,meterD:0.25,ped:1.0,acera:0.7,laneFree:2.3,calzada:4.3};
   const S=Object.assign({},DEF,{showDim:true,t:0,playing:false,speed:180});
 
   // ---- geometría ----
   function geo(){
-    const frontW=S.w1+S.w2, wb=S.L*(2.7/4.6), ov=(S.L-wb)/2, fo=ov, ro=ov;
+    const frontW=S.w1+S.w2, wb=S.L*(2.75/4.6), ov=(S.L-wb)/2, fo=ov, ro=ov;
     const gateR=frontW-S.meterW;                          // portón pegado al contador de agua
     const clearR=gateR-S.pillar, clearL=clearR-S.gw, gx=clearL-S.pillar;
-    const pedR=gx-0.5, pedL=pedR-S.ped;                  // 0,5 m entre peatonal y pilar izq del portón
+    const pedL=S.meterW+0.6, pedR=pedL+S.ped;            // peatonal fija; el muro pedR→gx crece con el portón
     const phimax=Math.atan(wb/S.R);
     const yOpp=-(S.acera+S.laneFree);                     // borde cercano de los coches de enfrente
     const yFar=-(S.acera+S.calzada);                      // bordillo de enfrente
@@ -137,7 +137,7 @@
   // ---- modo conducción manual ----
   let manualMode=false,manCar={x:0,y:0,th:0},manSegs=[],manCurSeg=null,manCrashed=false,manBlocked=false,manAnimId=null;
   function manualDefaultStart(){
-    const x=G.clearL-G.wb-G.fo-0.5;
+    const x=G.pedR-G.wb-G.fo;
     const y=-(S.acera+S.Wc/2+0.05);
     return {x,y,th:0};
   }
@@ -146,14 +146,15 @@
   function attemptEntrada(){
     const p=manualDefaultStart();
     return {start:[p.x,p.y,p.th],segs:[
-      {dir:1,steer:0.4209,len:0.78},{dir:1,steer:0,len:0.15},{dir:1,steer:-0.4209,len:0.39},
-      {dir:1,steer:0,len:0.27},{dir:1,steer:0.4209,len:0.27},{dir:1,steer:0,len:1.29},
-      {dir:1,steer:-0.4209,len:0.3},{dir:1,steer:0,len:0.84},{dir:1,steer:0.4209,len:0.18},
-      {dir:1,steer:0,len:0.33},{dir:1,steer:-0.4209,len:0.21},{dir:1,steer:0,len:1.32},
-      {dir:1,steer:-0.4209,len:0.33},{dir:1,steer:0,len:4.2},{dir:-1,steer:0.4209,len:4.62},
-      {dir:-1,steer:0,len:0.12},{dir:-1,steer:-0.4209,len:3.99},{dir:-1,steer:0,len:0.06},
-      {dir:1,steer:0,len:2.76},{dir:1,steer:0.4209,len:0.48},{dir:1,steer:0,len:0.66},
-      {dir:1,steer:0.4209,len:0.15},{dir:-1,steer:0,len:0.27}
+      {dir:1,steer:0,len:1.11},{dir:1,steer:0.4004,len:0.27},{dir:1,steer:0,len:0.48},
+      {dir:1,steer:0.4004,len:0.33},{dir:1,steer:0,len:0.99},{dir:1,steer:0.4004,len:0.21},
+      {dir:1,steer:0,len:0.39},{dir:1,steer:-0.4004,len:0.24},{dir:1,steer:0,len:1.32},
+      {dir:1,steer:-0.4004,len:0.15},{dir:1,steer:0,len:0.66},{dir:1,steer:-0.4004,len:0.33},
+      {dir:1,steer:0,len:1.92},{dir:1,steer:0.4004,len:0.12},{dir:1,steer:0,len:0.6},
+      {dir:1,steer:-0.4004,len:0.21},{dir:1,steer:0,len:1.77},{dir:-1,steer:0.4004,len:2.4},
+      {dir:-1,steer:0,len:0.75},{dir:-1,steer:0.4004,len:1.77},{dir:-1,steer:0,len:0.09},
+      {dir:-1,steer:-0.4004,len:3.27},{dir:1,steer:0,len:0.27},{dir:1,steer:0.4004,len:0.51},
+      {dir:1,steer:0,len:0.36},{dir:1,steer:0.4004,len:0.45},{dir:1,steer:0,len:1.98}
     ]};
   }
 
