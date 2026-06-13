@@ -146,7 +146,7 @@
 
   // ---- estado de escena ----
   let GH=null,GH2=null,GH3=null,verdict='no',blockFrac=1,blockFrac2=1,blockFrac3=1,blockKind=null,parkMan=null;
-  let activeAttempt=1;
+  let activeAttempt=1,attempt2InferredStart=null;
   function curGH(){return activeAttempt===3&&GH3?GH3:activeAttempt===2&&GH2?GH2:GH;}
   function curBF(){return activeAttempt===3?blockFrac3:activeAttempt===2?blockFrac2:blockFrac;}
   // ---- modo conducción manual ----
@@ -177,7 +177,7 @@
       {dir:1,steer:0,len:0.27},{dir:1,steer:-0.4209,len:0.24},{dir:1,steer:0,len:0.3},
       {dir:1,steer:-0.4209,len:0.57},
       {dir:1,steer:0.4209,len:0.39},{dir:1,steer:-0.4209,len:0.27},{dir:-1,steer:0.4209,len:0.36},
-      {dir:-1,steer:0,len:2.34},{dir:1,steer:0.4209,len:0.36},{dir:1,steer:0,len:0.09},
+      {dir:1,steer:0.4209,len:0.06},{dir:-1,steer:0,len:2.34},{dir:1,steer:0.4209,len:0.36},{dir:1,steer:0,len:0.09},
       {dir:1,steer:0.4209,len:0.21},
       {dir:1,steer:-0.4209,len:0.42},{dir:1,steer:0,len:0.09},{dir:1,steer:0.4209,len:0.45},{dir:1,steer:0,len:0.09},
       {dir:1,steer:-0.4209,len:0.42},{dir:1,steer:0,len:0.12},{dir:1,steer:-0.4209,len:0.24},
@@ -313,7 +313,16 @@
   function buildScene(cb){G=geo();
     const A=attempt();GH=ghost(A.start,A.segs);
     blockFrac=GH.block?GH.block.s/GH.total:1; blockKind=GH.block?GH.block.hit:null;
-    const A2=attempt2();GH2=ghost(A2.start,A2.segs);
+    // inferir punto de inicio del intento 2 dentro del recorrido del intento 1:
+    // el punto real es el que permite recorrer más distancia en intento 2 sin colisión
+    {const segs2=attempt2().segs,tr1=GH.tr,step=Math.max(1,Math.floor(tr1.length/300));
+    let bestDist=-1,bestPose=null;
+    for(let i=0;i<tr1.length;i+=step){const p=tr1[i];
+      const d=ghost([p.x,p.y,p.th],segs2,0.05);const dist=d.block?d.block.s:d.total;
+      if(dist>bestDist){bestDist=dist;bestPose=p;}}
+    attempt2InferredStart=bestPose;}
+    const A2start=attempt2InferredStart?[attempt2InferredStart.x,attempt2InferredStart.y,attempt2InferredStart.th]:attempt2().start;
+    GH2=ghost(A2start,attempt2().segs);
     blockFrac2=GH2.block?GH2.block.s/GH2.total:1;
     const A3=attempt3();GH3=ghost(A3.start,A3.segs);
     blockFrac3=GH3.block?GH3.block.s/GH3.total:1;
