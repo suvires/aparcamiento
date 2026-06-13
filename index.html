@@ -66,12 +66,12 @@
   const m=x=>parseFloat(x.toFixed(2)).toString().replace('.',',');
   const cm=x=>Math.round(x*100)+' cm';
 
-  const DEF={L:4.6,Wc:1.755,R:5.4,w1:4.7,d1:4.0,w2:4.9,d2:3.0,gw:5.5,pillar:0.2,meterW:0.8,meterD:0.25,ped:1.0,acera:0.7,laneFree:2.3,calzada:4.3};
+  const DEF={L:4.598,Wc:1.9,R:5.8,wb:2.88,w1:4.7,d1:4.0,w2:4.9,d2:3.0,gw:5.5,pillar:0.2,meterW:0.8,meterD:0.25,ped:1.0,acera:0.7,laneFree:2.3,calzada:4.3};
   const S=Object.assign({},DEF,{showDim:true,t:0,playing:false,speed:180});
 
   // ---- geometría ----
   function geo(){
-    const frontW=S.w1+S.w2, wb=S.L*(2.75/4.6), ov=(S.L-wb)/2, fo=ov, ro=ov;
+    const frontW=S.w1+S.w2, wb=S.wb, ov=(S.L-wb)/2, fo=ov, ro=ov;
     const gateR=frontW-S.meterW;                          // portón pegado al contador de agua
     const clearR=gateR-S.pillar, clearL=clearR-S.gw, gx=clearL-S.pillar;
     const pedL=S.meterW+0.6, pedR=pedL+S.ped;            // peatonal fija; el muro pedR→gx crece con el portón
