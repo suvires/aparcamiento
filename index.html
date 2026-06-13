@@ -9,11 +9,10 @@
     --ok:#1F9D6B;--warn:#E08A00;--bad:#DD3B3B;--chip:#EEF1F6;--road:#E9ECF1;--road2:#DDE2E9;
     --mono:ui-monospace,"SF Mono","Menlo","Consolas",monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);height:100%}
-  .wrap{width:100%;margin:0;padding:0 0 40px}
-  .stage{position:relative;height:100vh;overflow:hidden;background:#fff}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);height:100%;overflow:hidden}
+  .stage{position:relative;width:100%;height:100%;overflow:hidden;background:#fff}
   canvas{display:block;width:100%;height:100%;touch-action:none}
-  .controls{max-width:720px;margin:0 auto;padding:16px 14px 0}
+  #toolbar{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:8px;z-index:5}
   .calc{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(251,250,247,.82);font-weight:600;font-size:13px;color:var(--ink-soft)}
   .calc.on{display:flex}
   .banner{margin-top:12px;border-radius:12px;padding:11px 13px;font-size:13.5px;line-height:1.45;border:1px solid}
@@ -49,26 +48,15 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="stage"><canvas id="cv"></canvas><div class="calc" id="calc">Calculando…</div>
+<div class="stage"><canvas id="cv"></canvas><div class="calc" id="calc">Calculando…</div>
     <div id="crash-overlay"><div id="crash-msg">⚠ CHOQUE<br><span style="font-size:13px;font-weight:500">Pulsa <b>Reiniciar</b> para intentarlo de nuevo</span></div></div>
     <div id="json-overlay"><div id="json-box"><h3>Maniobra grabada — cópiala y pásala a Claude</h3><textarea id="json-ta" readonly></textarea><button class="btn ghost" id="json-close">Cerrar</button></div></div>
+    <div id="toolbar">
+      <button class="btn" id="play">▶ Ver entrada</button>
+      <button class="btn ghost" id="reset">Reiniciar</button>
+      <button class="btn ghost" id="toggleDim">Cotas: ON</button>
+    </div>
   </div>
-  <div class="controls">
-  <div class="play">
-    <button class="btn" id="play">▶ Ver intento 1</button>
-    <button class="btn ghost" id="play2">▶ Ver intento 2</button>
-    <button class="btn ghost" id="play3">▶ Ver intento 3</button>
-    <button class="btn ghost" id="reset">Reiniciar</button>
-    <button class="btn ghost" id="toggleDim">Cotas: ON</button>
-    <button class="btn ghost" id="manBtn">⌨ Conducir</button>
-  </div>
-  <div class="row"><span>Avance</span><input type="range" id="t" min="0" max="1000" value="0"></div>
-  <div class="row"><span>Velocidad</span><input type="range" id="speed" min="20" max="240" value="180"></div>
-
-
-</div>
-</div>
 
 <script>
 (function(){
@@ -79,15 +67,15 @@
   const cm=x=>Math.round(x*100)+' cm';
 
   const DEF={L:4.6,Wc:1.8,R:5.0,w1:4.7,d1:4.0,w2:4.9,d2:3.0,gw:5.5,pillar:0.2,meterW:0.8,meterD:0.25,ped:1.0,acera:0.7,laneFree:2.3,calzada:4.3};
-  const S=Object.assign({},DEF,{showDim:true,showGhost:true,t:0,playing:false,speed:180});
+  const S=Object.assign({},DEF,{showDim:true,t:0,playing:false,speed:180});
 
   // ---- geometría ----
   function geo(){
     const frontW=S.w1+S.w2, wb=S.L*(2.7/4.6), ov=(S.L-wb)/2, fo=ov, ro=ov;
-    const gx=S.meterW;                                     // poste izq pegado al contador de luz
-    const clearL=gx+S.pillar, clearR=clearL+S.gw, phimax=Math.atan(wb/S.R);
-    const gateR=clearR+S.pillar;                          // luz libre gw + 2 postes
-    const pedR=frontW-S.meterW-0.5, pedL=pedR-S.ped;     // 0,5 m de muro entre peatonal y contador agua
+    const gateR=frontW-S.meterW;                          // portón pegado al contador de agua
+    const clearR=gateR-S.pillar, clearL=clearR-S.gw, gx=clearL-S.pillar;
+    const pedR=gx-0.5, pedL=pedR-S.ped;                  // 0,5 m entre peatonal y pilar izq del portón
+    const phimax=Math.atan(wb/S.R);
     const yOpp=-(S.acera+S.laneFree);                     // borde cercano de los coches de enfrente
     const yFar=-(S.acera+S.calzada);                      // bordillo de enfrente
     const oppDepth=Math.max(0.1,S.calzada-S.laneFree);    // fondo de los coches de enfrente
@@ -95,7 +83,7 @@
     return {frontW,wb,fo,ro,gx,clearL,clearR,gateR,pedL,pedR,phimax,yOpp,yFar,yFarOpp,oppDepth,
       walls:[
         [[0,0],[0,S.d1]],[[0,S.d1],[S.w1,S.d1]],[[S.w1,S.d1],[S.w1,S.d2]],[[S.w1,S.d2],[frontW,S.d2]],[[frontW,S.d2],[frontW,0]],
-        [[0,0],[gx,0]],[[gateR,0],[pedL,0]],[[pedR,0],[frontW,0]],            // tramos macizos del frente
+        [[0,0],[pedL,0]],[[pedR,0],[gx,0]],[[gateR,0],[frontW,0]],            // tramos macizos del frente
         [[-6,0],[0,0]],[[frontW,0],[frontW+6,0]]],                            // bordillos a los lados
       oppWall:[[-6,yOpp],[frontW+6,yOpp]],                                    // coches de enfrente (no pasar)
       boxes:[[0,0,S.meterW,S.meterD],[frontW-S.meterW,0,S.meterW,S.meterD],
@@ -145,111 +133,27 @@
     return best;}
 
   // ---- estado de escena ----
-  let GH=null,GH2=null,GH3=null,verdict='no',blockFrac=1,blockFrac2=1,blockFrac3=1,blockKind=null,parkMan=null;
-  let activeAttempt=1,attempt2InferredStart=null;
-  function curGH(){return activeAttempt===3&&GH3?GH3:activeAttempt===2&&GH2?GH2:GH;}
-  function curBF(){return activeAttempt===3?blockFrac3:activeAttempt===2?blockFrac2:blockFrac;}
+  let GH=null,blockFrac=1;
   // ---- modo conducción manual ----
-  let manualMode=false,manCar={x:0,y:0,th:0},manSegs=[],manCurSeg=null,manCrashed=false,manAnimId=null;
-  let manPrefixDist=0,manPrefixN=1;
-  function attemptSegs(n){return n===3?attempt3().segs:n===2?attempt2().segs:attempt().segs;}
-  function segsUpTo(segs,dist){const out=[];let rem=dist;for(const sg of segs){if(rem<=1e-9)break;if(sg.len<=rem){out.push({...sg});rem-=sg.len;}else{out.push({...sg,len:rem});break;}}return out;}
+  let manualMode=false,manCar={x:0,y:0,th:0},manSegs=[],manCurSeg=null,manCrashed=false,manBlocked=false,manAnimId=null;
+  function manualDefaultStart(){
+    const x=G.clearL-G.wb-G.fo-0.5;
+    const y=-(S.acera+S.Wc/2+0.05);
+    return {x,y,th:0};
+  }
   const keys=new Set();
   // intento de entrada de cabeza (morro por delante) — enseña dónde topa
-  function attempt(){
-    const y0=-(S.acera+S.laneFree/2);
-    const x0=-(S.L/2+G.wb+G.fo);
-    return {start:[x0,y0,0.0],segs:[
-      {dir:1,steer:0,len:1.68},{dir:1,steer:0.4209,len:0.21},{dir:1,steer:0,len:0.57},
-      {dir:1,steer:0.4209,len:0.24},{dir:1,steer:0,len:0.6},{dir:1,steer:0.4209,len:0.21},
-      {dir:1,steer:0,len:0.48},{dir:1,steer:0.4209,len:0.48},
-      {dir:1,steer:0,len:1.59},{dir:1,steer:0.4209,len:0.15},
-      {dir:1,steer:0,len:0.45},{dir:1,steer:0.4209,len:0.42},{dir:1,steer:0,len:0.09},
-      {dir:1,steer:0.4209,len:1.83},{dir:1,steer:0,len:0.18},{dir:1,steer:-0.4209,len:0.54},
-      {dir:1,steer:0,len:0.24},{dir:1,steer:-0.4209,len:1.14},
-      {dir:1,steer:0.4209,len:0.27},{dir:1,steer:-0.4209,len:0.33},
-      {dir:1,steer:-0.4209,len:0.18},{dir:1,steer:0.4209,len:0.18},{dir:-1,steer:0,len:3.15},
-      {dir:1,steer:0.4209,len:0.84},{dir:1,steer:0,len:0.09},{dir:1,steer:-0.4209,len:0.48},
-      {dir:1,steer:0,len:0.27},{dir:1,steer:-0.4209,len:0.66},
-      {dir:1,steer:0.4209,len:0.3},{dir:1,steer:-0.4209,len:0.57},
-      {dir:-1,steer:0.4209,len:0.27},{dir:1,steer:0.4209,len:0.27},{dir:-1,steer:0.4209,len:0.42},
-      {dir:1,steer:0,len:0.24},{dir:-1,steer:0,len:2.85},{dir:1,steer:0.4209,len:0.75},
-      {dir:1,steer:0,len:0.27},{dir:1,steer:-0.4209,len:0.24},{dir:1,steer:0,len:0.3},
-      {dir:1,steer:-0.4209,len:0.57},
-      {dir:1,steer:0.4209,len:0.39},{dir:1,steer:-0.4209,len:0.27},{dir:-1,steer:0.4209,len:0.36},
-      {dir:1,steer:0.4209,len:0.06},{dir:-1,steer:0,len:2.34},{dir:1,steer:0.4209,len:0.36},{dir:1,steer:0,len:0.09},
-      {dir:1,steer:0.4209,len:0.21},
-      {dir:1,steer:-0.4209,len:0.42},{dir:1,steer:0,len:0.09},{dir:1,steer:0.4209,len:0.45},{dir:1,steer:0,len:0.09},
-      {dir:1,steer:-0.4209,len:0.42},{dir:1,steer:0,len:0.12},{dir:1,steer:-0.4209,len:0.24},
-      {dir:-1,steer:0.4209,len:0.33},{dir:-1,steer:0,len:0.18},{dir:-1,steer:0.4209,len:0.24},
-      {dir:1,steer:0,len:1.02}
-    ]};
-  }
-
-  function attempt2(){
-    const y0=-(S.acera+S.laneFree/2);
-    const x0=-(S.L/2+G.wb+G.fo);
-    return {start:[x0,y0,0.0],segs:[
-      {dir:1,steer:0.4209,len:0.87},{dir:1,steer:-0.4209,len:1.2},{dir:1,steer:0.4209,len:0.27},
-      {dir:1,steer:-0.4209,len:0.27},{dir:1,steer:0,len:0.06},{dir:1,steer:-0.4209,len:0.42},
-      {dir:1,steer:0.4209,len:0.21},{dir:1,steer:-0.4209,len:0.51},{dir:1,steer:0.4209,len:0.24},
-      {dir:-1,steer:0,len:3.24},{dir:1,steer:0,len:0.09},{dir:1,steer:0.4209,len:0.69},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.48},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:0.4209,len:0.15},{dir:1,steer:0,len:0.09},{dir:1,steer:-0.4209,len:0.27},
-      {dir:1,steer:0,len:0.06},{dir:1,steer:-0.4209,len:0.3},{dir:1,steer:0.4209,len:0.3},
-      {dir:1,steer:-0.4209,len:0.27},{dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.21},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.12},{dir:-1,steer:0,len:0.03},
-      {dir:-1,steer:0.4209,len:0.21},{dir:-1,steer:0,len:3.24},{dir:1,steer:0.4209,len:0.36},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:0.4209,len:0.39},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:-0.4209,len:0.51},{dir:1,steer:0,len:0.09},{dir:1,steer:0.4209,len:0.15},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.24},{dir:1,steer:0,len:0.03},
-      {dir:1,steer:0.4209,len:0.3},{dir:1,steer:-0.4209,len:0.18},{dir:1,steer:0,len:0.03},
-      {dir:1,steer:0.4209,len:0.12},{dir:1,steer:-0.4209,len:0.93},{dir:-1,steer:0.4209,len:0.21},
-      {dir:-1,steer:0,len:2.04},{dir:1,steer:0.4209,len:0.42},{dir:1,steer:0,len:0.03},
-      {dir:1,steer:0.4209,len:0.12},{dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.42},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.18},{dir:1,steer:0,len:0.93},
-      {dir:-1,steer:0,len:0.03},{dir:-1,steer:0.4209,len:0.12},{dir:-1,steer:0,len:0.09},
-      {dir:-1,steer:0.4209,len:0.09},{dir:-1,steer:0,len:2.67},{dir:-1,steer:0.4209,len:0.12},
-      {dir:-1,steer:0,len:0.06},{dir:-1,steer:0.4209,len:0.18},{dir:1,steer:0.4209,len:0.69},
-      {dir:1,steer:0,len:0.18},{dir:1,steer:0.4209,len:0.36},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:-0.4209,len:0.45},{dir:1,steer:0,len:0.03},{dir:1,steer:0.4209,len:0.33},
-      {dir:1,steer:-0.4209,len:0.3},{dir:1,steer:0.4209,len:0.24},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:-0.4209,len:0.27},{dir:1,steer:0.4209,len:0.3},{dir:1,steer:-0.4209,len:0.24},
-      {dir:-1,steer:0,len:0.36},{dir:-1,steer:0.4209,len:0.15},{dir:-1,steer:0,len:0.24},
-      {dir:-1,steer:0.4209,len:0.09},{dir:-1,steer:0,len:0.12},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:-0.4209,len:0.33},{dir:1,steer:0,len:0.69}
-    ]};
-  }
-
-  function attempt3(){
-    const y0=-(S.acera+S.laneFree/2);
-    const x0=-(S.L/2+G.wb+G.fo);
-    return {start:[x0,y0,0.0],segs:[
-      {dir:1,steer:0,len:5.28},{dir:1,steer:0.4209,len:4.14},{dir:-1,steer:0,len:1.59},
-      {dir:1,steer:0,len:1.05},{dir:1,steer:-0.4209,len:0.51},{dir:1,steer:0,len:0.33},
-      {dir:1,steer:-0.4209,len:0.63},{dir:1,steer:0,len:0.45},{dir:1,steer:-0.4209,len:0.09},
-      {dir:1,steer:0,len:0.15},{dir:1,steer:-0.4209,len:0.3},{dir:-1,steer:0,len:4.95},
-      {dir:1,steer:0.4209,len:0.84},{dir:1,steer:0,len:0.15},{dir:1,steer:-0.4209,len:0.42},
-      {dir:1,steer:0,len:0.24},{dir:1,steer:0.4209,len:0.36},{dir:1,steer:0,len:0.78},
-      {dir:1,steer:-0.4209,len:0.33},{dir:1,steer:0,len:0.54},{dir:1,steer:-0.4209,len:0.39},
-      {dir:1,steer:0,len:0.39},{dir:1,steer:-0.4209,len:0.99},{dir:1,steer:0,len:0.12},
-      {dir:-1,steer:0,len:2.37},{dir:1,steer:0.4209,len:0.69},{dir:1,steer:0,len:0.15},
-      {dir:1,steer:-0.4209,len:0.24},{dir:1,steer:0,len:0.48},{dir:-1,steer:0,len:0.66},
-      {dir:1,steer:-0.4209,len:0.3},{dir:1,steer:0,len:0.63},{dir:1,steer:-0.4209,len:0.24},
-      {dir:1,steer:0,len:0.24},{dir:1,steer:-0.4209,len:0.21},{dir:-1,steer:0,len:1.95},
-      {dir:-1,steer:0.4209,len:0.21},{dir:1,steer:0.4209,len:0.39},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:-0.4209,len:0.42},{dir:1,steer:0,len:0.09},{dir:1,steer:0.4209,len:0.27},
-      {dir:1,steer:0,len:0.21},{dir:1,steer:-0.4209,len:0.27},{dir:-1,steer:0.4209,len:0.33},
-      {dir:1,steer:0,len:0.78},{dir:1,steer:-0.4209,len:0.06},{dir:1,steer:0,len:0.03},
-      {dir:1,steer:-0.4209,len:0.12},{dir:-1,steer:0,len:3.33},{dir:1,steer:0,len:0.06},
-      {dir:1,steer:0.4209,len:0.87},{dir:1,steer:0,len:0.18},{dir:1,steer:-0.4209,len:0.57},
-      {dir:1,steer:0,len:0.12},{dir:1,steer:0.4209,len:0.21},{dir:1,steer:0,len:0.03},
-      {dir:1,steer:0.4209,len:0.18},{dir:1,steer:0,len:0.06},{dir:1,steer:-0.4209,len:0.45},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.51},{dir:-1,steer:0,len:2.79},
-      {dir:1,steer:0,len:0.42},{dir:1,steer:0.4209,len:0.51},{dir:1,steer:0,len:0.18},
-      {dir:1,steer:-0.4209,len:0.12},{dir:1,steer:0,len:0.63},{dir:1,steer:-0.4209,len:0.42},
-      {dir:1,steer:0,len:0.03},{dir:1,steer:-0.4209,len:0.27},{dir:1,steer:0,len:0.45},
-      {dir:-1,steer:0,len:3.39}
+  function attemptEntrada(){
+    const p=manualDefaultStart();
+    return {start:[p.x,p.y,p.th],segs:[
+      {dir:1,steer:0.4209,len:0.78},{dir:1,steer:0,len:0.15},{dir:1,steer:-0.4209,len:0.39},
+      {dir:1,steer:0,len:0.27},{dir:1,steer:0.4209,len:0.27},{dir:1,steer:0,len:1.29},
+      {dir:1,steer:-0.4209,len:0.3},{dir:1,steer:0,len:0.84},{dir:1,steer:0.4209,len:0.18},
+      {dir:1,steer:0,len:0.33},{dir:1,steer:-0.4209,len:0.21},{dir:1,steer:0,len:1.32},
+      {dir:1,steer:-0.4209,len:0.33},{dir:1,steer:0,len:4.2},{dir:-1,steer:0.4209,len:4.62},
+      {dir:-1,steer:0,len:0.12},{dir:-1,steer:-0.4209,len:3.99},{dir:-1,steer:0,len:0.06},
+      {dir:1,steer:0,len:2.76},{dir:1,steer:0.4209,len:0.48},{dir:1,steer:0,len:0.66},
+      {dir:1,steer:0.4209,len:0.15},{dir:-1,steer:0,len:0.27}
     ]};
   }
 
@@ -259,42 +163,46 @@
   function hideJsonOverlay(){document.getElementById('json-overlay').classList.remove('on');}
 
   function startManual(){
-    const p=GH?poseAt(S.t):attempt().start;
-    manCar=GH?{x:p.x,y:p.y,th:p.th}:{x:p[0],y:p[1],th:p[2]};
-    manPrefixDist=GH?S.t*curGH().total:0; manPrefixN=activeAttempt;
-    manSegs=[];manCurSeg=null;manCrashed=false;
+    if(GH&&S.t>0){const p=poseAt(S.t);manCar={x:p.x,y:p.y,th:p.th};}
+    else{manCar=manualDefaultStart();}
+    manSegs=[];manCurSeg=null;manCrashed=false;manBlocked=false;
     hideCrashOverlay();hideJsonOverlay();
     manualMode=true;
     stop();
     if(manAnimId)cancelAnimationFrame(manAnimId);
     manAnimId=requestAnimationFrame(manTick);
-    document.getElementById('manBtn').textContent='⌨ Salir';
   }
 
   function stopManual(){
     manualMode=false;
     if(manAnimId){cancelAnimationFrame(manAnimId);manAnimId=null;}
     hideCrashOverlay();hideJsonOverlay();
-    document.getElementById('manBtn').textContent='⌨ Conducir';
     draw();
   }
 
   function manTick(){
     if(!manualMode){manAnimId=null;return;}
-    if(!manCrashed){
+    {
       const dir=keys.has('ArrowUp')?1:keys.has('ArrowDown')?-1:0;
       const steer=keys.has('ArrowLeft')?G.phimax*0.85:keys.has('ArrowRight')?-G.phimax*0.85:0;
       if(dir!==0){
         const ds=0.03;
-        if(!manCurSeg||manCurSeg.dir!==dir||Math.abs(manCurSeg.steer-steer)>0.01){
-          if(manCurSeg&&manCurSeg.len>0)manSegs.push({...manCurSeg});
-          manCurSeg={dir,steer,len:0};
+        const nx=manCar.x+dir*Math.cos(manCar.th)*ds;
+        const ny=manCar.y+dir*Math.sin(manCar.th)*ds;
+        const nth=manCar.th+dir*ds*Math.tan(steer)/G.wb;
+        if(!hitType(nx,ny,nth,0)){
+          if(!manCurSeg||manCurSeg.dir!==dir||Math.abs(manCurSeg.steer-steer)>0.01){
+            if(manCurSeg&&manCurSeg.len>0)manSegs.push({...manCurSeg});
+            manCurSeg={dir,steer,len:0};
+          }
+          manCar.x=nx;manCar.y=ny;manCar.th=nth;
+          manCurSeg.len+=ds;
+          manBlocked=false;
+        } else {
+          manBlocked=true;
         }
-        manCar.x+=dir*Math.cos(manCar.th)*ds;
-        manCar.y+=dir*Math.sin(manCar.th)*ds;
-        manCar.th+=dir*ds*Math.tan(steer)/G.wb;
-        manCurSeg.len+=ds;
-        if(hitType(manCar.x,manCar.y,manCar.th,0)){manCrashed=true;showCrashOverlay();}
+      } else {
+        manBlocked=false;
       }
     }
     draw();
@@ -302,42 +210,22 @@
   }
 
   function onEnterParked(){
-    if(manCrashed)return;
     const manual=[...manSegs];
     if(manCurSeg&&manCurSeg.len>0.001)manual.push({dir:manCurSeg.dir,steer:manCurSeg.steer,len:manCurSeg.len});
-    const prefix=manPrefixDist>1e-3?segsUpTo(attemptSegs(manPrefixN),manPrefixDist):[];
-    const out=[...prefix,...manual].map(s=>({dir:s.dir,steer:parseFloat(s.steer.toFixed(4)),len:parseFloat(s.len.toFixed(4))}));
+    const out=manual.map(s=>({dir:s.dir,steer:parseFloat(s.steer.toFixed(4)),len:parseFloat(s.len.toFixed(4))}));
     showJsonOverlay(JSON.stringify(out,null,2));
   }
 
   function buildScene(cb){G=geo();
-    const A=attempt();GH=ghost(A.start,A.segs);
-    blockFrac=GH.block?GH.block.s/GH.total:1; blockKind=GH.block?GH.block.hit:null;
-    // inferir punto de inicio del intento 2 dentro del recorrido del intento 1:
-    // el punto real es el que permite recorrer más distancia en intento 2 sin colisión
-    {const segs2=attempt2().segs,tr1=GH.tr,step=Math.max(1,Math.floor(tr1.length/300));
-    let bestDist=-1,bestPose=null;
-    for(let i=0;i<tr1.length;i+=step){const p=tr1[i];
-      const d=ghost([p.x,p.y,p.th],segs2,0.05);const dist=d.block?d.block.s:d.total;
-      if(dist>bestDist){bestDist=dist;bestPose=p;}}
-    attempt2InferredStart=bestPose;}
-    const A2start=attempt2InferredStart?[attempt2InferredStart.x,attempt2InferredStart.y,attempt2InferredStart.th]:attempt2().start;
-    GH2=ghost(A2start,attempt2().segs);
-    blockFrac2=GH2.block?GH2.block.s/GH2.total:1;
-    const A3=attempt3();GH3=ghost(A3.start,A3.segs);
-    blockFrac3=GH3.block?GH3.block.s/GH3.total:1;
-    // ¿cabe de verdad? si el carril es claramente estrecho -> no. si no, intenta el planner.
-    if(S.laneFree<=2.7){verdict='no';parkMan=null;done();if(cb)cb();return;}
-    document.getElementById('calc').classList.add('on');
-    setTimeout(()=>{parkMan=planPark(160000);verdict=parkMan?'si':'no';
-      document.getElementById('calc').classList.remove('on');done();if(cb)cb();},25);
-    function done(){S.t=0;document.getElementById('t').value=0;}
+    const A=attemptEntrada();GH=ghost(A.start,A.segs);
+    blockFrac=GH.block?GH.block.s/GH.total:1;
+    S.t=0;if(cb)cb();
   }
 
   // ---- escala / dibujo ----
   let scale,offX=0,offY=0,padL=20,padR=60,padT=16,padB=24,minX,maxX,minY,maxY;
   function layout(){const cssW=cv.parentElement.clientWidth,cssH=cv.parentElement.clientHeight;
-    minX=-(S.L*1.5+0.8);maxX=G.frontW+1.4;maxY=Math.max(S.d1,S.d2)+0.3;minY=G.yFarOpp-0.3;
+    minX=-(S.L*1.5+0.8);maxX=G.frontW+(S.L*1.5+0.8);maxY=Math.max(S.d1,S.d2)+0.3;minY=G.yFarOpp-0.3;
     const scaleW=(cssW-padL-padR)/(maxX-minX),scaleH=(cssH-padT-padB)/(maxY-minY);
     scale=Math.min(scaleW,scaleH);
     offX=(cssW-padL-padR-(maxX-minX)*scale)/2;offY=(cssH-padT-padB-(maxY-minY)*scale)/2;
@@ -347,7 +235,7 @@
   function drawWheel(cx,cy,ang,colr){const l=0.58*scale,w=0.22*scale;ctx.save();ctx.translate(X(cx),Y(cy));ctx.rotate(-ang);ctx.fillStyle=colr||'#10151f';ctx.fillRect(-l/2,-w/2,l,w);ctx.restore();}
   function carPath(cc){ctx.beginPath();ctx.moveTo(X(cc[0][0]),Y(cc[0][1]));for(let i=1;i<4;i++)ctx.lineTo(X(cc[i][0]),Y(cc[i][1]));ctx.closePath();}
 
-  function poseAt(t){const gh=curGH();const tr=gh.tr,target=t*gh.total;let lo=0,hi=tr.length-1;
+  function poseAt(t){const tr=GH.tr,target=t*GH.total;let lo=0,hi=tr.length-1;
     while(lo<hi){const mid=(lo+hi)>>1;if(tr[mid].s<target)lo=mid+1;else hi=mid;}return tr[lo];}
 
   function draw(){ctx.clearRect(0,0,cv.width,cv.height);
@@ -384,9 +272,9 @@
     ctx.fillRect(X(S.w1),Y(S.d2+WT),X(G.frontW+WT)-X(S.w1),Y(S.d2)-Y(S.d2+WT)); // fondo B
     ctx.fillRect(X(G.frontW),Y(S.d2+WT),X(G.frontW+WT)-X(G.frontW),Y(0)-Y(S.d2+WT)); // muro dcha
     // muro frontal hacia el interior (acera queda fuera, en y < 0)
-    ctx.fillRect(X(0),Y(WT),X(G.gx)-X(0),Y(0)-Y(WT));
-    ctx.fillRect(X(G.gateR),Y(WT),X(G.pedL)-X(G.gateR),Y(0)-Y(WT));
-    ctx.fillRect(X(G.pedR),Y(WT),X(G.frontW)-X(G.pedR),Y(0)-Y(WT));
+    ctx.fillRect(X(0),Y(WT),X(G.pedL)-X(0),Y(0)-Y(WT));
+    ctx.fillRect(X(G.pedR),Y(WT),X(G.gx)-X(G.pedR),Y(0)-Y(WT));
+    ctx.fillRect(X(G.gateR),Y(WT),X(G.frontW)-X(G.gateR),Y(0)-Y(WT));
     // pilares 20×20 cm, alineados con la cara frontal (y=0 → y=S.pillar)
     ctx.fillStyle='#3A3028';
     ctx.fillRect(X(G.gx),Y(S.pillar),X(G.clearL)-X(G.gx),Y(0)-Y(S.pillar));
@@ -397,24 +285,11 @@
     if(S.showDim){
     }
 
-    // rectángulo verde — pose ideal: x y th del final de trayectoria, y centrado entre muros
-    if(GH && GH.tr && GH.tr.length){
-      const fp=GH.tr[GH.tr.length-1];
-      const idealY=(WT+S.d2)/2;  // equidistante entre cara interior muro entrada y fondo zona B
-      const fcc=corners(fp.x,idealY,fp.th,0);
-      ctx.save();ctx.globalAlpha=0.25;ctx.fillStyle='#1F9D6B';
-      ctx.beginPath();ctx.moveTo(X(fcc[0][0]),Y(fcc[0][1]));
-      for(let i=1;i<4;i++)ctx.lineTo(X(fcc[i][0]),Y(fcc[i][1]));
-      ctx.closePath();ctx.fill();
-      ctx.globalAlpha=0.7;ctx.strokeStyle='#1F9D6B';ctx.lineWidth=1.5;ctx.stroke();
-      ctx.restore();
-    }
-
     // coche
-    if(manualMode){
+    if(manualMode&&!S.playing){
       const mc=manCar;
-      const curSteer=manCurSeg?manCurSeg.steer:0;
-      const colr=manCrashed?{f:'rgba(221,59,59,.28)',s:'#DD3B3B'}:{f:'rgba(58,70,89,.16)',s:'#3a4659'};
+      const curSteer=keys.has('ArrowLeft')?G.phimax*0.85:keys.has('ArrowRight')?-G.phimax*0.85:manCurSeg?manCurSeg.steer:0;
+      const colr=manBlocked?{f:'rgba(230,180,0,.30)',s:'#C8960A'}:{f:'rgba(58,70,89,.16)',s:'#3a4659'};
       const cc=corners(mc.x,mc.y,mc.th,0);carPath(cc);ctx.fillStyle=colr.f;ctx.fill();
       ctx.strokeStyle=colr.s;ctx.lineWidth=1.5;ctx.stroke();
       const c=Math.cos(mc.th),s=Math.sin(mc.th),tr=(S.Wc/2-0.16),nx=-s,ny=c,fax=[mc.x+c*G.wb,mc.y+s*G.wb];
@@ -422,16 +297,17 @@
       drawWheel(fax[0]+nx*tr,fax[1]+ny*tr,mc.th+curSteer,colr.s);drawWheel(fax[0]-nx*tr,fax[1]-ny*tr,mc.th+curSteer,colr.s);
       const fc=[(cc[0][0]+cc[1][0])/2,(cc[0][1]+cc[1][1])/2];
       {const as=5;ctx.save();ctx.translate(X(fc[0]),Y(fc[1]));ctx.rotate(-mc.th);ctx.fillStyle=colr.s;ctx.beginPath();ctx.moveTo(as,0);ctx.lineTo(-as,-as*0.6);ctx.lineTo(-as,as*0.6);ctx.closePath();ctx.fill();ctx.restore();}
-    } else {
+    }
+    if(S.playing&&GH){
       const p=poseAt(S.t);const hit=hitType(p.x,p.y,p.th,0);
       const colr=hit?{f:'rgba(221,59,59,.20)',s:'#DD3B3B'}:{f:'rgba(58,70,89,.16)',s:'#3a4659'};
       const cc=corners(p.x,p.y,p.th,0);carPath(cc);ctx.fillStyle=colr.f;ctx.fill();
+      ctx.strokeStyle=colr.s;ctx.lineWidth=1.5;ctx.stroke();
       const c=Math.cos(p.th),s=Math.sin(p.th),tr=(S.Wc/2-0.16),nx=-s,ny=c,fax=[p.x+c*G.wb,p.y+s*G.wb];
       drawWheel(p.x+nx*tr,p.y+ny*tr,p.th,colr.s);drawWheel(p.x-nx*tr,p.y-ny*tr,p.th,colr.s);
       drawWheel(fax[0]+nx*tr,fax[1]+ny*tr,p.th+(p.steer||0),colr.s);drawWheel(fax[0]-nx*tr,fax[1]-ny*tr,p.th+(p.steer||0),colr.s);
       const fc=[(cc[0][0]+cc[1][0])/2,(cc[0][1]+cc[1][1])/2];
-      {const as=5,co=Math.cos(p.th),si=Math.sin(p.th);ctx.save();ctx.translate(X(fc[0]),Y(fc[1]));ctx.rotate(-p.th);ctx.fillStyle=colr.s;ctx.beginPath();ctx.moveTo(as,0);ctx.lineTo(-as,-as*0.6);ctx.lineTo(-as,as*0.6);ctx.closePath();ctx.fill();ctx.restore();}
-      if(GH.block){const b=GH.block;ctx.beginPath();ctx.arc(X(b.x+Math.cos(b.th)*(G.wb+G.fo)),Y(b.y+Math.sin(b.th)*(G.wb+G.fo)),0,0,7);}
+      {const as=5;ctx.save();ctx.translate(X(fc[0]),Y(fc[1]));ctx.rotate(-p.th);ctx.fillStyle=colr.s;ctx.beginPath();ctx.moveTo(as,0);ctx.lineTo(-as,-as*0.6);ctx.lineTo(-as,as*0.6);ctx.closePath();ctx.fill();ctx.restore();}
     }
 
     // cotas calle
@@ -439,10 +315,9 @@
       cote(X(0),Y(S.d1)-12,X(S.w1),Y(S.d1)-12,S.w1,'h');cote(X(S.w1),Y(S.d2)-12,X(G.frontW),Y(S.d2)-12,S.w2,'h');
       const fy1=Y(0)+14,fy2=Y(0)+28;
       cote(X(0),fy1,X(S.meterW),fy1,S.meterW,'h');                                          // LUZ
-      cote(X(G.clearL),fy2,X(G.clearR),fy2,S.gw,'h');                                       // portón (luz libre)
-      cote(X(G.gateR),fy2,X(G.pedL),fy2,G.pedL-G.gateR,'h');                              // hueco poste dcho → peatonal
       cote(X(G.pedL),fy2,X(G.pedR),fy2,S.ped,'h');                                         // peatonal
-      cote(X(G.pedR),fy1,X(G.frontW-S.meterW),fy1,G.frontW-S.meterW-G.pedR,'h');           // hueco dcha
+      cote(X(G.pedR),fy1,X(G.gx),fy1,G.gx-G.pedR,'h');                                    // hueco ped → pilar izq
+      cote(X(G.clearL),fy2,X(G.clearR),fy2,S.gw,'h');                                      // portón (luz libre)
       cote(X(G.frontW-S.meterW),fy1,X(G.frontW),fy1,S.meterW,'h');                         // AGUA
       cote(X(0)-16,Y(0),X(0)-16,Y(S.d1),S.d1,'v');
       cote(X(S.w1)+14,Y(S.d2),X(S.w1)+14,Y(S.d1),S.d1-S.d2,'v');
@@ -466,27 +341,18 @@
 
   let last=0;
   function tick(now){if(!S.playing)return;const dt=(now-last)/1000;last=now;
-    const gh=curGH(),bf=curBF();
-    S.t+=dt*(S.speed/200)*(3.0/Math.max(gh.total,1));
-    if(S.t>=bf){S.t=bf;stop();}
-    document.getElementById('t').value=Math.round(S.t*1000);draw();update();if(S.playing)requestAnimationFrame(tick);}
-  function stop(){S.playing=false;
-    document.getElementById('play').textContent='▶ Ver intento 1';
-    document.getElementById('play2').textContent='▶ Ver intento 2';
-    document.getElementById('play3').textContent='▶ Ver intento 3';}
+    S.t+=dt*(S.speed/200)*(3.0/Math.max(GH.total,1));
+    if(S.t>=blockFrac){S.t=blockFrac;stop();}
+    draw();update();if(S.playing)requestAnimationFrame(tick);}
+  function stop(){S.playing=false;document.getElementById('play').textContent='▶ Ver entrada';
+    if(S.t>0&&GH){const p=poseAt(S.t);manCar={x:p.x,y:p.y,th:p.th};manSegs=[];manCurSeg=null;manBlocked=false;}
+    S.t=0;}
 
   document.getElementById('toggleDim').addEventListener('click',()=>{S.showDim=!S.showDim;document.getElementById('toggleDim').textContent='Cotas: '+(S.showDim?'ON':'OFF');draw();});
-  document.getElementById('t').addEventListener('input',e=>{S.t=e.target.value/1000;stop();draw();update();});
-  document.getElementById('speed').addEventListener('input',e=>{S.speed=parseFloat(e.target.value);});
-  document.getElementById('play').addEventListener('click',()=>{if(manualMode)return;if(S.playing&&activeAttempt===1){stop();return;}stop();activeAttempt=1;if(S.t>=curBF()-1e-3)S.t=0;S.playing=true;document.getElementById('play').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
-  document.getElementById('play2').addEventListener('click',()=>{if(manualMode)return;if(S.playing&&activeAttempt===2){stop();return;}stop();activeAttempt=2;if(S.t>=curBF()-1e-3)S.t=0;S.playing=true;document.getElementById('play2').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
-  document.getElementById('play3').addEventListener('click',()=>{if(manualMode)return;if(S.playing&&activeAttempt===3){stop();return;}stop();activeAttempt=3;if(S.t>=curBF()-1e-3)S.t=0;S.playing=true;document.getElementById('play3').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
+  document.getElementById('play').addEventListener('click',()=>{if(S.playing){stop();return;}if(S.t>=blockFrac-1e-3)S.t=0;S.playing=true;document.getElementById('play').textContent='❚❚ Pausa';last=performance.now();requestAnimationFrame(tick);});
   document.getElementById('reset').addEventListener('click',()=>{
     if(manualMode){startManual();return;}
-    S.t=0;document.getElementById('t').value=0;stop();draw();update();
-  });
-  document.getElementById('manBtn').addEventListener('click',()=>{
-    if(manualMode)stopManual();else startManual();
+    S.t=0;stop();draw();update();
   });
   document.getElementById('json-close').addEventListener('click',hideJsonOverlay);
   document.addEventListener('keydown',e=>{
@@ -497,7 +363,7 @@
   document.addEventListener('keyup',e=>keys.delete(e.key));
   window.addEventListener('resize',()=>{layout();draw();});
 
-  buildScene(()=>{layout();draw();update();});
+  buildScene(()=>{layout();draw();update();startManual();});
 })();
 </script>
 </body>
